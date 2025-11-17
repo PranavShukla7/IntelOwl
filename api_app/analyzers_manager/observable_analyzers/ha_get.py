@@ -103,20 +103,15 @@ class HybridAnalysisGet(ObservableAnalyzer):
                             job["permalink"] += f"/{job_id}"
 
         return result
-<<<<<<< HEAD
-=======
 
     @classmethod
     def _monkeypatch(cls):
         def side_effect(*args, **kwargs):
             url = args[0] if args else kwargs.get("url", "")
-            # Mock GET /search/hash response (returns list of hashes)
+
             if "search/hash" in url and kwargs.get("params"):
-                return MockUpResponse(
-                    ["abcdefgh"],
-                    200,
-                )
-            # Mock GET /overview/{sha256} response (returns full SampleSummary)
+                return MockUpResponse(["abcdefgh"], 200)
+
             elif "overview/" in url:
                 return MockUpResponse(
                     {
@@ -126,7 +121,7 @@ class HybridAnalysisGet(ObservableAnalyzer):
                     },
                     200,
                 )
-            # Mock POST /search/terms response (for domain, IP, URL)
+
             else:
                 return MockUpResponse(
                     [
@@ -145,4 +140,3 @@ class HybridAnalysisGet(ObservableAnalyzer):
             )
         ]
         return super()._monkeypatch(patches=patches)
->>>>>>> 781a8a22 (Initial sync before fix)
