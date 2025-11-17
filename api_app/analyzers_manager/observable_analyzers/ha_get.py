@@ -6,6 +6,7 @@ import requests
 from api_app.analyzers_manager.classes import ObservableAnalyzer
 from api_app.analyzers_manager.exceptions import AnalyzerRunException
 from api_app.choices import Classification
+from tests.mock_utils import MockUpResponse, if_mock_connections, patch
 
 
 class HybridAnalysisGet(ObservableAnalyzer):
