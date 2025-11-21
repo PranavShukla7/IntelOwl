@@ -32,18 +32,22 @@ class HybridAnalysisGet(ObservableAnalyzer):
             data = {"domain": self.observable_name}
             uri = "search/terms"
             response = requests.post(self.api_url + uri, data=data, headers=headers)
+
         elif obs_clsfn == Classification.IP:
             data = {"host": self.observable_name}
             uri = "search/terms"
             response = requests.post(self.api_url + uri, data=data, headers=headers)
+
         elif obs_clsfn == Classification.URL:
             data = {"url": self.observable_name}
             uri = "search/terms"
             response = requests.post(self.api_url + uri, data=data, headers=headers)
+
         elif obs_clsfn == Classification.HASH:
             uri = "search/hash"
             params = {"hash": self.observable_name}
             response = requests.get(self.api_url + uri, params=params, headers=headers)
+
         else:
             raise AnalyzerRunException(
                 f"not supported observable type {obs_clsfn}. "
@@ -57,7 +61,9 @@ class HybridAnalysisGet(ObservableAnalyzer):
             detailed_results = []
             for item in result:
                 if isinstance(item, dict) and (
-                    item.get("job_id") or item.get("verdict") or item.get("threat_score")
+                    item.get("job_id")
+                    or item.get("verdict")
+                    or item.get("threat_score")
                 ):
                     sha256 = item.get("sha256", "")
                     job_id = item.get("job_id", "")
@@ -66,8 +72,13 @@ class HybridAnalysisGet(ObservableAnalyzer):
                         if job_id:
                             item["permalink"] += f"/{job_id}"
                     detailed_results.append(item)
+
                 else:
-                    sha256 = item if isinstance(item, str) else item.get("sha256") or item.get("hash")
+                    sha256 = (
+                        item
+                        if isinstance(item, str)
+                        else item.get("sha256") or item.get("hash")
+                    )
                     if sha256:
                         overview_uri = f"overview/{sha256}"
                         try:
@@ -76,10 +87,14 @@ class HybridAnalysisGet(ObservableAnalyzer):
                             )
                             overview_response.raise_for_status()
                             sample_summary = overview_response.json()
+
                             job_id = sample_summary.get("job_id", "")
-                            sample_summary["permalink"] = f"{self.sample_url}/{sha256}"
+                            sample_summary["permalink"] = (
+                                f"{self.sample_url}/{sha256}"
+                            )
                             if job_id:
                                 sample_summary["permalink"] += f"/{job_id}"
+
                             detailed_results.append(sample_summary)
                         except requests.RequestException:
                             if isinstance(item, dict):
@@ -92,7 +107,9 @@ class HybridAnalysisGet(ObservableAnalyzer):
                                         "permalink": f"{self.sample_url}/{sha256}",
                                     }
                                 )
+
             result = detailed_results if detailed_results else result
+
         else:
             if isinstance(result, list):
                 for job in result:
@@ -113,7 +130,7 @@ class HybridAnalysisGet(ObservableAnalyzer):
             if "search/hash" in url and kwargs.get("params"):
                 return MockUpResponse(["abcdefgh"], 200)
 
-            elif "overview/" in url:
+            if "overview/" in url:
                 return MockUpResponse(
                     {
                         "job_id": "1",
@@ -123,16 +140,15 @@ class HybridAnalysisGet(ObservableAnalyzer):
                     200,
                 )
 
-            else:
-                return MockUpResponse(
-                    [
-                        {
-                            "job_id": "1",
-                            "sha256": "abcdefgh",
-                        }
-                    ],
-                    200,
-                )
+            return MockUpResponse(
+                [
+                    {
+                        "job_id": "1",
+                        "sha256": "abcdefgh",
+                    }
+                ],
+                200,
+            )
 
         patches = [
             if_mock_connections(

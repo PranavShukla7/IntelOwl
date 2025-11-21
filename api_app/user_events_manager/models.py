@@ -81,6 +81,9 @@ class UserAnalyzableEvent(UserEvent):
 
     class Meta:
         unique_together = (("user", "analyzable"),)
+        indexes = [
+            models.Index(fields=["data_model_content_type", "data_model_object_id"])
+        ]
 
     def clean(self):
         super().clean()
