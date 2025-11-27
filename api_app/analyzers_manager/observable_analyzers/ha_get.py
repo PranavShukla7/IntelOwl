@@ -44,14 +44,14 @@ class HybridAnalysisGet(ObservableAnalyzer):
         return requests.post(
             self.api_url + "search/terms",
             data={key: value},
-            headers=headers
+            headers=headers,
         )
 
     def _search_hash(self, value: str, headers: Dict[str, str]):
         return requests.get(
             self.api_url + "search/hash",
             params={"hash": value},
-            headers=headers
+            headers=headers,
         )
 
     def _add_permalink(self, obj: Dict[str, Any], sha: str, job_id: str = ""):
