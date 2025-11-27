@@ -22,141 +22,131 @@ class HybridAnalysisGet(ObservableAnalyzer):
 
     @classmethod
     def update(cls) -> bool:
-        """Return True indicating analyzer metadata update succeeded (no-op)."""
         return True
 
     def _fetch_sample_summary(
         self, sha256: str, headers: Dict[str, str]
     ) -> Optional[Dict[str, Any]]:
-        """
-        Fetch sample overview/summary for a given sha256.
-        Returns the parsed JSON dict on success, or None on failure.
-        """
         overview_uri = f"overview/{sha256}"
         try:
-            overview_response = requests.get(
-                self.api_url + overview_uri, headers=headers
-            )
-            overview_response.raise_for_status()
-            summary = overview_response.json()
-            return summary if isinstance(summary, dict) else None
+            res = requests.get(self.api_url + overview_uri, headers=headers)
+            res.raise_for_status()
+            data = res.json()
+            return data if isinstance(data, dict) else None
         except requests.RequestException:
             return None
 
+    # -------------------------------------------
+    # Helper functions to reduce run() complexity
+    # -------------------------------------------
+
+    def _search_terms(self, key: str, value: str, headers: Dict[str, str]):
+        return requests.post(
+            self.api_url + "search/terms",
+            data={key: value},
+            headers=headers
+        )
+
+    def _search_hash(self, value: str, headers: Dict[str, str]):
+        return requests.get(
+            self.api_url + "search/hash",
+            params={"hash": value},
+            headers=headers
+        )
+
+    def _add_permalink(self, obj: Dict[str, Any], sha: str, job_id: str = ""):
+        link = f"{self.sample_url}/{sha}"
+        if job_id:
+            link += f"/{job_id}"
+        obj["permalink"] = link
+
+    def _process_full_item(self, item: Dict[str, Any]):
+        sha = item.get("sha256", "")
+        job_id = item.get("job_id", "")
+        if sha:
+            self._add_permalink(item, sha, job_id)
+        return item
+
+    def _process_minimal_item(self, item: Any, headers: Dict[str, str]):
+        sha = item if isinstance(item, str) else item.get("sha256") or item.get("hash")
+        if not sha:
+            return {}
+
+        summary = self._fetch_sample_summary(sha, headers)
+        if summary:
+            job_id = summary.get("job_id", "")
+            self._add_permalink(summary, sha, job_id)
+            return summary
+
+        if isinstance(item, dict):
+            self._add_permalink(item, sha)
+            return item
+
+        return {"sha256": sha, "permalink": f"{self.sample_url}/{sha}"}
+
+    def _process_hash_results(self, result: List[Any], headers: Dict[str, str]):
+        detailed = []
+        for item in result:
+            if isinstance(item, dict) and (
+                item.get("job_id") or item.get("verdict") or item.get("threat_score")
+            ):
+                detailed.append(self._process_full_item(item))
+            else:
+                processed = self._process_minimal_item(item, headers)
+                if processed:
+                    detailed.append(processed)
+        return detailed or result
+
+    def _add_permalink_list(self, result: List[Dict[str, Any]]):
+        for item in result:
+            sha = item.get("sha256", "")
+            job_id = item.get("job_id", "")
+            if sha:
+                self._add_permalink(item, sha, job_id)
+
+    # -------------------------------------------
+
     def run(self) -> Any:
-        """
-        Execute the analyzer for the configured observable.
-        Returns the parsed JSON result (list or dict) as produced by Hybrid Analysis,
-        augmenting results with `permalink` where applicable.
-        """
         headers = {
             "api-key": self._api_key_name,
             "user-agent": "Falcon Sandbox",
             "accept": "application/json",
         }
 
-        obs_clsfn = self.observable_classification
+        obs_cls = self.observable_classification
+        value = self.observable_name
 
-        if obs_clsfn == Classification.DOMAIN:
-            data = {"domain": self.observable_name}
-            uri = "search/terms"
-            response = requests.post(self.api_url + uri, data=data, headers=headers)
+        if obs_cls == Classification.DOMAIN:
+            response = self._search_terms("domain", value, headers)
 
-        elif obs_clsfn == Classification.IP:
-            data = {"host": self.observable_name}
-            uri = "search/terms"
-            response = requests.post(self.api_url + uri, data=data, headers=headers)
+        elif obs_cls == Classification.IP:
+            response = self._search_terms("host", value, headers)
 
-        elif obs_clsfn == Classification.URL:
-            data = {"url": self.observable_name}
-            uri = "search/terms"
-            response = requests.post(self.api_url + uri, data=data, headers=headers)
+        elif obs_cls == Classification.URL:
+            response = self._search_terms("url", value, headers)
 
-        elif obs_clsfn == Classification.HASH:
-            uri = "search/hash"
-            params = {"hash": self.observable_name}
-            response = requests.get(self.api_url + uri, params=params, headers=headers)
+        elif obs_cls == Classification.HASH:
+            response = self._search_hash(value, headers)
 
         else:
             raise AnalyzerRunException(
-                f"not supported observable type {obs_clsfn}. Supported are: hash, ip, domain and url"
+                f"not supported observable type {obs_cls}. "
+                "Supported are: hash, ip, domain and url"
             )
 
         response.raise_for_status()
         result = response.json()
 
-        # HASH handling: result may be list of full summaries OR list of hashes/minimal entries
-        if obs_clsfn == Classification.HASH and isinstance(result, list):
-            detailed_results: List[Dict[str, Any]] = []
-            for item in result:
-                # If item already looks like a full summary (contains job_id/verdict/threat_score)
-                if isinstance(item, dict) and (
-                    item.get("job_id")
-                    or item.get("verdict")
-                    or item.get("threat_score")
-                ):
-                    sha256 = item.get("sha256", "")
-                    job_id = item.get("job_id", "")
-                    if sha256:
-                        item["permalink"] = f"{self.sample_url}/{sha256}"
-                        if job_id:
-                            item["permalink"] += f"/{job_id}"
-                    detailed_results.append(item)
-                    continue
+        if obs_cls == Classification.HASH and isinstance(result, list):
+            return self._process_hash_results(result, headers)
 
-                # Otherwise treat item as minimal (string hash) or dict with 'sha256'/'hash'
-                sha256 = (
-                    item
-                    if isinstance(item, str)
-                    else item.get("sha256") or item.get("hash")
-                )
-                if not sha256:
-                    # skip malformed entry
-                    continue
-
-                summary = self._fetch_sample_summary(sha256, headers)
-                if summary:
-                    # ensure permalink exists
-                    job_id = summary.get("job_id", "")
-                    summary["permalink"] = f"{self.sample_url}/{sha256}"
-                    if job_id:
-                        summary["permalink"] += f"/{job_id}"
-                    detailed_results.append(summary)
-                else:
-                    # fallback to minimal structure with permalink
-                    if isinstance(item, dict):
-                        item["permalink"] = f"{self.sample_url}/{sha256}"
-                        detailed_results.append(item)
-                    else:
-                        detailed_results.append(
-                            {
-                                "sha256": sha256,
-                                "permalink": f"{self.sample_url}/{sha256}",
-                            }
-                        )
-
-            result = detailed_results if detailed_results else result
-
-        else:
-            # For non-hash searches, attach permalink if possible
-            if isinstance(result, list):
-                for job in result:
-                    sha256 = job.get("sha256", "")
-                    job_id = job.get("job_id", "")
-                    if sha256:
-                        job["permalink"] = f"{self.sample_url}/{sha256}"
-                        if job_id:
-                            job["permalink"] += f"/{job_id}"
+        if isinstance(result, list):
+            self._add_permalink_list(result)
 
         return result
 
     @classmethod
     def _monkeypatch(cls):
-        """
-        Provide mocks for tests: GET /search/hash -> list of hashes,
-        GET /overview/<sha> -> full summary, POST /search/terms -> job list.
-        """
-
         def side_effect(*args, **kwargs):
             url = args[0] if args else kwargs.get("url", "")
 
