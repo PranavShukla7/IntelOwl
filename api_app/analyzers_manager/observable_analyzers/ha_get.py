@@ -21,7 +21,7 @@ class HybridAnalysisGet(ObservableAnalyzer):
 
     @classmethod
     def update(cls) -> bool:
-        return True
+        pass
 
     def _fetch_sample_summary(
         self, sha256: str, headers: Dict[str, str]
@@ -111,16 +111,12 @@ class HybridAnalysisGet(ObservableAnalyzer):
 
         if obs_cls == Classification.DOMAIN:
             response = self._search_terms("domain", value, headers)
-
         elif obs_cls == Classification.IP:
             response = self._search_terms("host", value, headers)
-
         elif obs_cls == Classification.URL:
             response = self._search_terms("url", value, headers)
-
         elif obs_cls == Classification.HASH:
             response = self._search_hash(value, headers)
-
         else:
             raise AnalyzerRunException(
                 f"not supported observable type {obs_cls}. "
