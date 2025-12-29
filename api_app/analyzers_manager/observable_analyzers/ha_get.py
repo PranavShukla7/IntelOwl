@@ -10,7 +10,6 @@ import requests
 from api_app.analyzers_manager.classes import ObservableAnalyzer
 from api_app.analyzers_manager.exceptions import AnalyzerRunException
 from api_app.choices import Classification
-from tests.mock_utils import MockUpResponse, if_mock_connections, patch
 
 
 class HybridAnalysisGet(ObservableAnalyzer):
@@ -35,10 +34,6 @@ class HybridAnalysisGet(ObservableAnalyzer):
             return data if isinstance(data, dict) else None
         except requests.RequestException:
             return None
-
-    # -------------------------------------------
-    # Helper functions to reduce run() complexity
-    # -------------------------------------------
 
     def _search_terms(self, key: str, value: str, headers: Dict[str, str]):
         return requests.post(
@@ -104,8 +99,6 @@ class HybridAnalysisGet(ObservableAnalyzer):
             if sha:
                 self._add_permalink(item, sha, job_id)
 
-    # -------------------------------------------
-
     def run(self) -> Any:
         headers = {
             "api-key": self._api_key_name,
@@ -144,26 +137,3 @@ class HybridAnalysisGet(ObservableAnalyzer):
             self._add_permalink_list(result)
 
         return result
-
-    @classmethod
-    def _monkeypatch(cls):
-        def side_effect(*args, **kwargs):
-            url = args[0] if args else kwargs.get("url", "")
-
-            if "search/hash" in url and kwargs.get("params"):
-                return MockUpResponse(["abcdefgh"], 200)
-
-            if "overview/" in url:
-                return MockUpResponse(
-                    {"job_id": "1", "sha256": "abcdefgh", "verdict": "malicious"}, 200
-                )
-
-            return MockUpResponse([{"job_id": "1", "sha256": "abcdefgh"}], 200)
-
-        patches = [
-            if_mock_connections(
-                patch("requests.get", side_effect=side_effect),
-                patch("requests.post", side_effect=side_effect),
-            )
-        ]
-        return super()._monkeypatch(patches=patches)
