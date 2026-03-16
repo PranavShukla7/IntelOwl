@@ -179,7 +179,7 @@ class PlaybookConfigViewSetTestCase(AbstractConfigViewSetTestCaseMixin, CustomVi
                 "for_organization": False,
                 "id": 1,
                 "is_editable": False,
-                "name": "Dns",
+                "name": "DNS",
                 "owner": None,
                 "pivots": [],
                 "runtime_configuration": {
