@@ -16,7 +16,7 @@ def reverse_migrate(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("playbooks_manager", "0062_add_cleanbrowsing_to_free_to_use"),
+        ("playbooks_manager", "0066_link_crawl_visualizer_to_playbook"),
     ]
 
     operations = [
