@@ -948,7 +948,10 @@ def plugin_state_viewer(request):
         raise PermissionDenied()
 
     result = {"data": {}}
-    for opc in OrganizationPluginConfiguration.objects.filter(disabled=True):
+    for opc in OrganizationPluginConfiguration.objects.filter(
+        disabled=True,
+        organization=request.user.membership.organization,
+    ):
         result["data"][opc.config.name] = {
             "disabled": True,
         }
