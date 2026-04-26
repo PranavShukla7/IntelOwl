@@ -30,19 +30,24 @@ class BaseConnectorTest(TestCase):
     ):
         """
         Setup a connector with required side-effects (Job, Analyzable, etc.)
+        Returns (connector, job, config, analyzable) so callers can clean up
+        using a direct reference to the created Analyzable instance.
         """
         config = ConnectorConfig.objects.get(python_module__module__endswith=f".{connector_class_name}")
 
-        # Create required PluginConfigs if params are provided
+        # Use update_or_create so repeated calls with different param values
+        # always reflect the intended configuration rather than leaving stale rows.
         if params:
             for name, value in params.items():
                 param = Parameter.objects.get(python_module=config.python_module, name=name)
-                PluginConfig.objects.get_or_create(
+                PluginConfig.objects.update_or_create(
                     parameter=param,
                     connector_config=config,
                     defaults={"value": value, "for_organization": False, "owner": None},
                 )
 
+        # Keep a direct reference so the finally block can delete the exact row
+        # rather than re-querying by name (which is not unique).
         analyzable = Analyzable.objects.create(name=observable_name, classification=observable_type)
         job = Job.objects.create(
             analyzable=analyzable,
@@ -54,7 +59,7 @@ class BaseConnectorTest(TestCase):
         connector = self.connector_class(config)
         connector.job_id = job.pk
 
-        return connector, job, config
+        return connector, job, config, analyzable
 
     def get_mocked_response(self):
         """
@@ -83,17 +88,19 @@ class BaseConnectorTest(TestCase):
     ):
         """
         Generic test runner for connectors.
+        Exceptions are allowed to propagate so that the full traceback is
+        visible in the test output and assertion failures are not swallowed.
         """
         if not self.connector_class:
             self.skipTest("connector_class not set")
 
-        connector, job, config = self._setup_connector(
+        connector, job, config, analyzable = self._setup_connector(
             connector_class_name, observable_name, observable_type, params
         )
 
         patches = self.get_mocked_response()
-        with self._apply_patches(patches):
-            try:
+        try:
+            with self._apply_patches(patches):
                 from kombu import uuid
 
                 connector.report = config.generate_empty_report(
@@ -104,12 +111,10 @@ class BaseConnectorTest(TestCase):
                 response = connector.run()
 
                 self.assertIsInstance(response, (dict, list))
-
                 return response
-            except Exception as e:
-                self.fail(f"Connector {self.connector_class.__name__} failed: {e}")
-            finally:
-                job.delete()
-                analyzable = Analyzable.objects.filter(name=observable_name).first()
-                if analyzable:
-                    analyzable.delete()
+        finally:
+            # Delete using the direct reference captured at creation time to
+            # avoid accidentally removing an unrelated Analyzable that shares
+            # the same name.
+            job.delete()
+            analyzable.delete()
