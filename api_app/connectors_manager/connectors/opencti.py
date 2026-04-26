@@ -226,4 +226,3 @@ class OpenCTI(classes.Connector):
             except Exception:
                 pass
             raise
-

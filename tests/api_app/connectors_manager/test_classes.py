@@ -43,6 +43,7 @@ class ConnectorTestCase(CustomTestCase):
             connector_config=cc,
         )
         from unittest.mock import MagicMock
+
         mock_response = MagicMock()
         mock_response.status_code = 200
 

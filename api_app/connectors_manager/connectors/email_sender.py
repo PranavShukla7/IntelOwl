@@ -43,4 +43,3 @@ class EmailSender(Connector):
 
     def update(self) -> bool:
         pass
-

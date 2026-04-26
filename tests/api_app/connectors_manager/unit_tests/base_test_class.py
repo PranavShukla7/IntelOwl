@@ -31,25 +31,19 @@ class BaseConnectorTest(TestCase):
         """
         Setup a connector with required side-effects (Job, Analyzable, etc.)
         """
-        config = ConnectorConfig.objects.get(
-            python_module__module__endswith=f".{connector_class_name}"
-        )
+        config = ConnectorConfig.objects.get(python_module__module__endswith=f".{connector_class_name}")
 
         # Create required PluginConfigs if params are provided
         if params:
             for name, value in params.items():
-                param = Parameter.objects.get(
-                    python_module=config.python_module, name=name
-                )
+                param = Parameter.objects.get(python_module=config.python_module, name=name)
                 PluginConfig.objects.get_or_create(
                     parameter=param,
                     connector_config=config,
                     defaults={"value": value, "for_organization": False, "owner": None},
                 )
 
-        analyzable = Analyzable.objects.create(
-            name=observable_name, classification=observable_type
-        )
+        analyzable = Analyzable.objects.create(name=observable_name, classification=observable_type)
         job = Job.objects.create(
             analyzable=analyzable,
             user=self.superuser,
