@@ -63,7 +63,12 @@ class BaseConnectorTest(TestCase):
 
     def get_mocked_response(self):
         """
-        Subclasses should override this to provide a list of patches.
+        Subclasses should override this to provide patch context manager(s).
+
+        Supported return values are:
+        - a single patch/context manager
+        - a list or tuple of patches/context managers
+        - an empty value when no patching is needed
         """
         return []
 
